@@ -186,10 +186,7 @@
 
     <div class="section">
       <div class="section-title">📷 Камера</div>
-      <div id="reader"></div>
-      <button id="btnToggleCamera" class="camera-btn camera-btn-start" onclick="toggleCamera()">
-        Включить камеру
-      </button>
+      <div id="reader" style="width: 100%;"></div>
     </div>
 
     <div class="section">
@@ -235,78 +232,36 @@
 
     // ==========================================================================
 
-    var html5QrCode = null;
-    var isCameraRunning = false;
     var isProcessing = false;
     var scanLog = [];
 
-    var SUPPORTED_FORMATS = [
-      Html5QrcodeSupportedFormats.EAN_13,
-      Html5QrcodeSupportedFormats.EAN_8,
-      Html5QrcodeSupportedFormats.CODE_128,
-      Html5QrcodeSupportedFormats.CODE_39,
-      Html5QrcodeSupportedFormats.UPC_A,
-      Html5QrcodeSupportedFormats.UPC_E,
-      Html5QrcodeSupportedFormats.ITF,
-      Html5QrcodeSupportedFormats.QR_CODE
-    ];
-
     function initScanner() {
-      html5QrCode = new Html5Qrcode("reader", { formatsToSupport: SUPPORTED_FORMATS });
-
       if (!API_URL) {
         document.getElementById("setupBanner").className = "setup-banner visible";
       }
-    }
 
-    // ====================== КАМЕРА ======================
-
-    function toggleCamera() {
-      if (isCameraRunning) { stopCamera(); } else { startCamera(); }
-    }
-
-    function startCamera() {
-      var btn = document.getElementById("btnToggleCamera");
-      btn.disabled = true;
-      btn.textContent = "Запускаем...";
-
-      var config = {
+      var scanner = new Html5QrcodeScanner("reader", {
         fps: 15,
         qrbox: function (viewfinderWidth, viewfinderHeight) {
           var minEdge = Math.min(viewfinderWidth, viewfinderHeight);
-          return { width: Math.floor(minEdge * 0.85), height: Math.floor(minEdge * 0.35) };
-        }
-      };
-
-      html5QrCode.start(
-        { facingMode: "environment" },
-        config,
-        onScanSuccess,
-        function () {}
-      ).then(function () {
-        isCameraRunning = true;
-        btn.disabled = false;
-        btn.textContent = "Выключить камеру";
-        btn.className = "camera-btn camera-btn-stop";
-      }).catch(function (err) {
-        btn.disabled = false;
-        btn.textContent = "Включить камеру";
-        alert("Не удалось запустить камеру:\n" + err);
+          return { width: Math.floor(minEdge * 0.85), height: Math.floor(minEdge * 0.4) };
+        },
+        rememberLastUsedCamera: true,
+        supportedScanTypes: [Html5QrcodeScanType.SCAN_TYPE_CAMERA, Html5QrcodeScanType.SCAN_TYPE_FILE],
+        formatsToSupport: [
+          Html5QrcodeSupportedFormats.EAN_13,
+          Html5QrcodeSupportedFormats.EAN_8,
+          Html5QrcodeSupportedFormats.CODE_128,
+          Html5QrcodeSupportedFormats.CODE_39,
+          Html5QrcodeSupportedFormats.UPC_A,
+          Html5QrcodeSupportedFormats.UPC_E,
+          Html5QrcodeSupportedFormats.ITF,
+          Html5QrcodeSupportedFormats.QR_CODE
+        ]
       });
-    }
 
-    function stopCamera() {
-      var btn = document.getElementById("btnToggleCamera");
-      html5QrCode.stop().then(function () {
-        isCameraRunning = false;
-        btn.textContent = "Включить камеру";
-        btn.className = "camera-btn camera-btn-start";
-      }).catch(function (err) {
-        console.error("Ошибка остановки камеры:", err);
-      });
+      scanner.render(onScanSuccess, function () {});
     }
-
-    // ====================== ОБРАБОТКА ======================
 
     function onScanSuccess(decodedText) {
       if (isProcessing) return;
