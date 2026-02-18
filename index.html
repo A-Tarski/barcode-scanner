@@ -418,22 +418,30 @@
       isProcessing = true;
       showLoading(true);
 
-      var url = API_URL + "?barcode=" + encodeURIComponent(barcode) + "&quantity=" + encodeURIComponent(quantity);
+      var url = API_URL
+        + "?barcode=" + encodeURIComponent(barcode)
+        + "&quantity=" + encodeURIComponent(quantity)
+        + "&_t=" + Date.now();
       console.log("[API] Отправляем GET: " + url);
 
-      fetch(url, { redirect: "follow" })
-      .then(function(response) { return response.json(); })
+      fetch(url, { redirect: "follow", cache: "no-store" })
+      .then(function(response) {
+        console.log("[API] HTTP статус: " + response.status);
+        return response.json();
+      })
       .then(function(json) {
         isProcessing = false;
         showLoading(false);
 
         console.log("[API] Ответ: " + JSON.stringify(json));
 
-        if (json.success) {
+        if (json.success && json.data) {
           showStatus(json.data, false);
           addToLog(json.data);
+        } else if (json.success && !json.data) {
+          showStatus({ barcode: barcode, errorMessage: "Сервер не вернул данные. Попробуйте ещё раз." }, true);
         } else {
-          showStatus({ barcode: barcode, errorMessage: json.error }, true);
+          showStatus({ barcode: barcode, errorMessage: json.error || "Неизвестная ошибка" }, true);
         }
       })
       .catch(function(err) {
