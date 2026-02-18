@@ -4,7 +4,6 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>ТСД — Сканер штрихкодов</title>
-  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -49,26 +48,39 @@
       letter-spacing: 0.5px;
     }
 
-    #reader {
+    /* ====================== СКАНЕР ====================== */
+
+    #scanner-container {
       width: 100%;
+      aspect-ratio: 1;
+      background: #1e293b;
       border-radius: 8px;
       overflow: hidden;
+      position: relative;
     }
 
-    /* Прячем лишние элементы библиотеки */
-    #reader img[alt="Info icon"] { display: none !important; }
-    #reader__dashboard_section { padding: 0 !important; }
-    #reader__dashboard_section_swaplink { font-size: 14px !important; }
+    #scanner-status {
+      font-size: 13px;
+      color: #666;
+      margin-top: 8px;
+      min-height: 1.4em;
+      word-break: break-all;
+    }
+
+    .scanner-controls {
+      display: flex;
+      gap: 8px;
+      margin-top: 8px;
+    }
 
     .camera-btn {
-      width: 100%;
-      padding: 16px;
-      font-size: 18px;
+      flex: 1;
+      padding: 14px;
+      font-size: 16px;
       font-weight: bold;
       border: none;
       border-radius: 10px;
       cursor: pointer;
-      margin-top: 8px;
       transition: background 0.2s;
     }
 
@@ -76,7 +88,11 @@
     .camera-btn-start:hover { background: #2d9249; }
     .camera-btn-stop { background: #ea4335; color: white; }
     .camera-btn-stop:hover { background: #d33426; }
-    .camera-btn:disabled { background: #ccc; cursor: not-allowed; }
+    .camera-btn-torch { background: #eab308; color: #1e293b; }
+    .camera-btn-torch:hover { background: #ca8a04; }
+    .camera-btn:disabled { background: #ccc !important; color: #999 !important; cursor: not-allowed; }
+
+    /* ====================== ВВОД ====================== */
 
     .input-row { display: flex; gap: 8px; margin-bottom: 8px; }
 
@@ -105,6 +121,8 @@
     }
     .btn-send:hover { background: #1557b0; }
     .btn-send:disabled { background: #ccc; cursor: not-allowed; }
+
+    /* ====================== СТАТУС ====================== */
 
     .status-section { display: none; }
     .status-section.visible { display: block; }
@@ -136,6 +154,8 @@
     .badge-new { background: #e8f0fe; color: #1a73e8; }
     .badge-updated { background: #e6f4ea; color: #137333; }
 
+    /* ====================== ЛОГ ====================== */
+
     .log-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
     .log-clear { font-size: 13px; color: #ea4335; background: none; border: none; cursor: pointer; padding: 4px 8px; }
     .log-list { list-style: none; max-height: 300px; overflow-y: auto; }
@@ -148,6 +168,8 @@
     .log-qty { color: #1a73e8; font-weight: bold; margin: 0 8px; white-space: nowrap; }
     .log-time { color: #999; font-size: 12px; white-space: nowrap; }
     .log-empty { text-align: center; color: #999; padding: 20px; font-size: 14px; }
+
+    /* ====================== ЗАГРУЗКА ====================== */
 
     .loading-overlay {
       display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0;
@@ -175,23 +197,30 @@
 </head>
 <body>
 
-  <div class="header">📦 ТСД — Сканер</div>
+  <div class="header">ТСД — Сканер</div>
 
   <div class="container">
 
     <div id="setupBanner" class="setup-banner">
-      <b>⚠️ URL API не настроен!</b><br>
+      <b>URL API не настроен!</b><br>
       Откройте этот HTML-файл и укажите ваш URL деплоя Google Apps Script в переменной <code>API_URL</code>.
     </div>
 
+    <!-- СКАНЕР -->
     <div class="section">
-      <div class="section-title">📷 Камера</div>
-      <div id="reader" style="width: 100%;"></div>
-      <div id="debugInfo" style="font-size:13px;color:#666;margin-top:8px;word-break:break-all;"></div>
+      <div class="section-title">Камера</div>
+      <div id="scanner-container"></div>
+      <div id="scanner-status">Нажмите «Старт» для начала сканирования</div>
+      <div class="scanner-controls">
+        <button id="btnStart" class="camera-btn camera-btn-start">Старт</button>
+        <button id="btnStop" class="camera-btn camera-btn-stop" disabled>Стоп</button>
+        <button id="btnTorch" class="camera-btn camera-btn-torch" disabled>Фонарик</button>
+      </div>
     </div>
 
+    <!-- РУЧНОЙ ВВОД -->
     <div class="section">
-      <div class="section-title">⌨️ Ручной ввод</div>
+      <div class="section-title">Ручной ввод</div>
       <div class="input-row">
         <input type="text" id="inputBarcode" class="input-field"
                placeholder="Введите штрихкод..." inputmode="numeric" autocomplete="off">
@@ -201,13 +230,15 @@
       <button id="btnSend" class="btn-send" onclick="submitManualBarcode()">Отправить</button>
     </div>
 
+    <!-- СТАТУС ПОСЛЕДНЕГО СКАНИРОВАНИЯ -->
     <div id="statusSection" class="section status-section">
       <div id="statusContent"></div>
     </div>
 
+    <!-- ЛОГ -->
     <div class="section">
       <div class="log-header">
-        <div class="section-title" style="margin-bottom:0">📋 Лог сканирований</div>
+        <div class="section-title" style="margin-bottom:0">Лог сканирований</div>
         <button class="log-clear" onclick="clearLog()">Очистить</button>
       </div>
       <ul id="logList" class="log-list">
@@ -216,6 +247,7 @@
     </div>
   </div>
 
+  <!-- ОВЕРЛЕЙ ЗАГРУЗКИ -->
   <div id="loadingOverlay" class="loading-overlay">
     <div class="loading-spinner">
       <div class="spinner-icon"></div>
@@ -223,50 +255,147 @@
     </div>
   </div>
 
+  <!-- ================================================================
+       WASM: Emscripten glue (classic script, must load before module)
+       ================================================================ -->
   <script>
+    var Module = {
+      locateFile: function(path) {
+        return './public/' + path;
+      }
+    };
+  </script>
+  <script src="./public/a.out.js"></script>
+
+  <!-- ================================================================
+       APP: Main application logic (ES module)
+       ================================================================ -->
+  <script type="module">
+    import { BarcodeScanner } from './public/web-wasm-barcode-reader.js';
+
     // ==========================================================================
-    // НАСТРОЙКА — ВСТАВЬТЕ СЮДА URL ВАШЕГО ДЕПЛОЯ GAS
+    // НАСТРОЙКА — URL ДЕПЛОЯ GAS
     // ==========================================================================
-    // После Deploy → New deployment → Web app скопируйте URL и вставьте ниже.
-    // Формат: https://script.google.com/macros/s/XXXXX/exec
     var API_URL = "https://script.google.com/macros/s/AKfycbwr3BSu4rS-U1b1HpRyTKKVyYNzrUv7rJ1R9pEvjktdmFhxMPaXHqLXXxgCUULmbNSD/exec";
 
     // ==========================================================================
-
+    // СОСТОЯНИЕ
+    // ==========================================================================
     var isProcessing = false;
     var scanLog = [];
+    var scanner = null;
+    var lastScannedCode = "";
+    var lastScannedTime = 0;
+    var DEDUPE_DELAY_MS = 3000; // игнорировать повторный скан того же кода в течение 3 сек
 
-    function initScanner() {
-      if (!API_URL) {
-        document.getElementById("setupBanner").className = "setup-banner visible";
-      }
+    // ==========================================================================
+    // ЭЛЕМЕНТЫ DOM
+    // ==========================================================================
+    var container = document.getElementById("scanner-container");
+    var btnStart = document.getElementById("btnStart");
+    var btnStop = document.getElementById("btnStop");
+    var btnTorch = document.getElementById("btnTorch");
+    var statusEl = document.getElementById("scanner-status");
 
-      var scanner = new Html5QrcodeScanner("reader", {
-        fps: 2,
-        qrbox: 250,
-        rememberLastUsedCamera: true
-      });
+    // ==========================================================================
+    // ИНИЦИАЛИЗАЦИЯ
+    // ==========================================================================
 
-      scanner.render(
-        function onSuccess(decodedText, decodedResult) {
-          if (isProcessing) return;
-          document.getElementById("debugInfo").textContent =
-            "Распознано: " + decodedText + " (" + decodedResult.result.format.formatName + ")";
-          playBeep();
-          sendBarcodeToServer(decodedText, getQuantityValue());
-        },
-        function onError(errorMessage) {}
-      );
+    if (!API_URL) {
+      document.getElementById("setupBanner").className = "setup-banner visible";
     }
 
-    function submitManualBarcode() {
+    // ==========================================================================
+    // УПРАВЛЕНИЕ СКАНЕРОМ
+    // ==========================================================================
+
+    btnStart.addEventListener("click", async function() {
+      btnStart.disabled = true;
+      statusEl.textContent = "Запуск камеры...";
+
+      scanner = new BarcodeScanner({
+        container: container,
+        onDetect: function(result) {
+          handleBarcodeDetected(result);
+        },
+        onError: function(err) {
+          statusEl.textContent = "Ошибка: " + err.message;
+          console.error("[BarcodeScanner]", err);
+        },
+        beepOnDetect: true,
+        facingMode: "environment"
+      });
+
+      try {
+        await scanner.start();
+        statusEl.textContent = "Сканирование... наведите камеру на штрихкод";
+        btnStop.disabled = false;
+        btnTorch.disabled = false;
+      } catch (err) {
+        statusEl.textContent = "Не удалось запустить: " + err.message;
+        btnStart.disabled = false;
+        scanner = null;
+      }
+    });
+
+    btnStop.addEventListener("click", function() {
+      if (scanner) {
+        scanner.stop();
+        scanner = null;
+      }
+      btnStart.disabled = false;
+      btnStop.disabled = true;
+      btnTorch.disabled = true;
+      statusEl.textContent = "Сканер остановлен";
+    });
+
+    btnTorch.addEventListener("click", async function() {
+      if (!scanner) return;
+      try {
+        var on = await scanner.toggleTorch();
+        btnTorch.textContent = on ? "Выкл. фонарик" : "Фонарик";
+      } catch (err) {
+        statusEl.textContent = "Фонарик не поддерживается на этом устройстве";
+      }
+    });
+
+    // ==========================================================================
+    // ОБРАБОТКА РЕЗУЛЬТАТА СКАНИРОВАНИЯ
+    // ==========================================================================
+
+    function handleBarcodeDetected(result) {
+      var barcode = result.data;
+      var symbolType = result.symbol;
+      var now = Date.now();
+
+      console.log("[Scan] Обнаружен: " + barcode + " (" + symbolType + ")");
+
+      // Дедупликация: игнорируем повторный скан того же кода в пределах DEDUPE_DELAY_MS
+      if (barcode === lastScannedCode && (now - lastScannedTime) < DEDUPE_DELAY_MS) {
+        console.log("[Scan] Дедупликация: тот же код " + barcode + " в пределах " + DEDUPE_DELAY_MS + "мс, пропускаем");
+        return;
+      }
+
+      lastScannedCode = barcode;
+      lastScannedTime = now;
+
+      statusEl.textContent = "Распознано: " + barcode + " (" + symbolType + ")";
+      sendBarcodeToServer(barcode, getQuantityValue());
+    }
+
+    // ==========================================================================
+    // РУЧНОЙ ВВОД
+    // ==========================================================================
+
+    // Делаем функцию глобальной для onclick
+    window.submitManualBarcode = function() {
       var barcodeInput = document.getElementById("inputBarcode");
       var barcode = barcodeInput.value.trim();
       if (!barcode) { alert("Введите штрихкод"); barcodeInput.focus(); return; }
       playBeep();
       barcodeInput.value = "";
       sendBarcodeToServer(barcode, getQuantityValue());
-    }
+    };
 
     function getQuantityValue() {
       var qtyInput = document.getElementById("inputQuantity");
@@ -275,14 +404,21 @@
       return quantity;
     }
 
-    // ====================== ОТПРАВКА В GAS ======================
+    // ==========================================================================
+    // ОТПРАВКА В GAS
+    // ==========================================================================
 
     function sendBarcodeToServer(barcode, quantity) {
-      if (isProcessing) return;
+      if (isProcessing) {
+        console.log("[API] Уже обрабатывается запрос, пропускаем: " + barcode);
+        return;
+      }
       if (!API_URL) { alert("URL API не настроен! Откройте файл и заполните API_URL."); return; }
 
       isProcessing = true;
       showLoading(true);
+
+      console.log("[API] Отправляем: barcode=" + barcode + ", quantity=" + quantity);
 
       fetch(API_URL, {
         method: "POST",
@@ -290,10 +426,12 @@
         body: JSON.stringify({ barcode: barcode, quantity: quantity }),
         redirect: "follow"
       })
-      .then(function (response) { return response.json(); })
-      .then(function (json) {
+      .then(function(response) { return response.json(); })
+      .then(function(json) {
         isProcessing = false;
         showLoading(false);
+
+        console.log("[API] Ответ: " + JSON.stringify(json));
 
         if (json.success) {
           showStatus(json.data, false);
@@ -302,14 +440,17 @@
           showStatus({ barcode: barcode, errorMessage: json.error }, true);
         }
       })
-      .catch(function (err) {
+      .catch(function(err) {
         isProcessing = false;
         showLoading(false);
+        console.error("[API] Ошибка: " + err.message);
         showStatus({ barcode: barcode, errorMessage: "Сетевая ошибка: " + err.message }, true);
       });
     }
 
-    // ====================== UI ======================
+    // ==========================================================================
+    // UI: СТАТУС
+    // ==========================================================================
 
     function showStatus(result, isError) {
       var section = document.getElementById("statusSection");
@@ -333,6 +474,10 @@
         '<div class="status-barcode">' + esc(result.barcode) + badge + '</div>' +
         '<div class="status-total">Итого на складе: <strong>' + result.totalQuantity + '</strong> шт.</div></div>';
     }
+
+    // ==========================================================================
+    // UI: ЛОГ
+    // ==========================================================================
 
     function addToLog(result) {
       scanLog.unshift({
@@ -362,14 +507,20 @@
       list.innerHTML = html;
     }
 
-    function clearLog() { scanLog = []; renderLog(); }
+    window.clearLog = function() { scanLog = []; renderLog(); };
+
+    // ==========================================================================
+    // UI: ЗАГРУЗКА
+    // ==========================================================================
 
     function showLoading(show) {
       document.getElementById("loadingOverlay").className =
         show ? "loading-overlay visible" : "loading-overlay";
     }
 
-    // ====================== ЗВУК ======================
+    // ==========================================================================
+    // ЗВУК (резервный бип для ручного ввода)
+    // ==========================================================================
 
     function playBeep() {
       try {
@@ -383,11 +534,15 @@
         gain.gain.value = 0.3;
         osc.start();
         osc.stop(ctx.currentTime + 0.15);
-        osc.onended = function () { ctx.close(); };
-      } catch (e) {}
+        osc.onended = function() { ctx.close(); };
+      } catch (e) {
+        console.log("[Beep] Не удалось воспроизвести звук: " + e.message);
+      }
     }
 
-    // ====================== УТИЛИТЫ ======================
+    // ==========================================================================
+    // УТИЛИТЫ
+    // ==========================================================================
 
     function esc(text) {
       if (!text) return "";
@@ -396,11 +551,10 @@
       return div.innerHTML;
     }
 
-    document.getElementById("inputBarcode").addEventListener("keydown", function (e) {
-      if (e.key === "Enter") { e.preventDefault(); submitManualBarcode(); }
+    // Enter в поле штрихкода = отправка
+    document.getElementById("inputBarcode").addEventListener("keydown", function(e) {
+      if (e.key === "Enter") { e.preventDefault(); window.submitManualBarcode(); }
     });
-
-    window.addEventListener("load", function () { initScanner(); });
   </script>
 </body>
 </html>
